@@ -1,44 +1,50 @@
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
 use log::error;
-use pixels::Error;
+use pixels::{Error, Pixels, SurfaceTexture};
+use std::time::Instant;
+use tiny_skia::Pixmap;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
-mod front;
-mod pokemon;
+mod shape;
 
-use front::Front;
-
-const WINDOW_WIDTH: u32 = 10;
-const WINDOW_HEIGHT: u32 = 5;
+const WIDTH: u32 = 500;
+const HEIGHT: u32 = 500;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
-
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
-
     let window = {
-        let size = LogicalSize {
-            width: 800,
-            height: 600,
-        };
+        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()
-            .with_title("Pokemon automata")
+            .with_title("Hello tiny-skia")
             .with_inner_size(size)
             .with_min_inner_size(size)
             .build(&event_loop)
             .unwrap()
     };
 
-    let mut front = Front::new(&window)?;
+    let mut pixels = {
+        let window_size = window.inner_size();
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+
+        Pixels::new(WIDTH, HEIGHT, surface_texture)?
+    };
+
+    let mut drawing = Pixmap::new(WIDTH, HEIGHT).unwrap();
+    let now = Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
-        //Draw frame
+        // Draw the current frame
         if let Event::RedrawRequested(_) = event {
-            if let Err(err) = front.draw() {
+            pixels.get_frame_mut().copy_from_slice(drawing.data());
+            if let Err(err) = pixels.render() {
                 error!("pixels.render() failed: {err}");
                 *control_flow = ControlFlow::Exit;
                 return;
@@ -55,7 +61,7 @@ fn main() -> Result<(), Error> {
 
             // Resize the window
             if let Some(size) = input.window_resized() {
-                if let Err(err) = front.resize_surface(size.width, size.height) {
+                if let Err(err) = pixels.resize_surface(size.width, size.height) {
                     error!("pixels.resize_surface() failed: {err}");
                     *control_flow = ControlFlow::Exit;
                     return;
@@ -63,7 +69,7 @@ fn main() -> Result<(), Error> {
             }
 
             // Update internal state and request a redraw
-            front.update();
+            shape::draw(&mut drawing, now.elapsed().as_secs_f32());
             window.request_redraw();
         }
     });

@@ -1,44 +1,62 @@
+#![deny(clippy::all)]
+#![forbid(unsafe_code)]
+
+use crate::shapes::Shapes;
 use log::error;
-use pixels::Error;
+use pixels::{Error, Pixels, SurfaceTexture};
+use std::time::Instant;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
-mod front;
-mod pokemon;
+mod shapes;
 
-use front::Front;
-
-const WINDOW_WIDTH: u32 = 10;
-const WINDOW_HEIGHT: u32 = 5;
+const WIDTH: u32 = 400;
+const HEIGHT: u32 = 400;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
-
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
-
     let window = {
-        let size = LogicalSize {
-            width: 800,
-            height: 600,
-        };
+        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()
-            .with_title("Pokemon automata")
+            .with_title("Hello Raqote")
             .with_inner_size(size)
             .with_min_inner_size(size)
             .build(&event_loop)
             .unwrap()
     };
 
-    let mut front = Front::new(&window)?;
+    let (mut pixels, mut shapes) = {
+        let window_size = window.inner_size();
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+
+        let pixels = Pixels::new(WIDTH, HEIGHT, surface_texture)?;
+        let shapes = Shapes::new(WIDTH, HEIGHT);
+
+        (pixels, shapes)
+    };
+
+    let mut now = Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
-        //Draw frame
+        // Draw the current frame
         if let Event::RedrawRequested(_) = event {
-            if let Err(err) = front.draw() {
+            for (dst, &src) in pixels
+                .get_frame_mut()
+                .chunks_exact_mut(4)
+                .zip(shapes.get_frame().iter())
+            {
+                dst[0] = (src >> 16) as u8;
+                dst[1] = (src >> 8) as u8;
+                dst[2] = src as u8;
+                dst[3] = (src >> 24) as u8;
+            }
+
+            if let Err(err) = pixels.render() {
                 error!("pixels.render() failed: {err}");
                 *control_flow = ControlFlow::Exit;
                 return;
@@ -55,7 +73,7 @@ fn main() -> Result<(), Error> {
 
             // Resize the window
             if let Some(size) = input.window_resized() {
-                if let Err(err) = front.resize_surface(size.width, size.height) {
+                if let Err(err) = pixels.resize_surface(size.width, size.height) {
                     error!("pixels.resize_surface() failed: {err}");
                     *control_flow = ControlFlow::Exit;
                     return;
@@ -63,8 +81,10 @@ fn main() -> Result<(), Error> {
             }
 
             // Update internal state and request a redraw
-            front.update();
+            shapes.draw(now.elapsed().as_secs_f32());
             window.request_redraw();
+
+            now = Instant::now();
         }
     });
 }
