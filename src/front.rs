@@ -33,6 +33,18 @@ impl Front {
         self.pixels.resize_surface(width, height)
     }
 
+    pub fn get_pokemon_at_physical_position(&self, physical_pos: (f32, f32)) -> Option<&Pokemon> {
+        let grid_pos = self.physical_position_to_grid_position(physical_pos)?;
+        self.pokemon_world.get_pokemon(grid_pos.0, grid_pos.1)
+    }
+
+    pub fn physical_position_to_grid_position(
+        &self,
+        physical_pos: (f32, f32),
+    ) -> Option<(usize, usize)> {
+        self.pixels.window_pos_to_pixel(physical_pos).ok()
+    }
+
     /// Draw the `World` state to the frame buffer.
     ///
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
@@ -45,8 +57,10 @@ impl Front {
 
             let (r, g, b) = self
                 .pokemon_world
-                .get_pokemon_color(x as usize, y as usize)
-                .expect("Coordinates in pokemon world bounds");
+                .get_pokemon(x as usize, y as usize)
+                .expect("Coordinates in pokemon world bounds")
+                .pokemon_type
+                .get_color();
             let rgba = [r, g, b, 0xff];
 
             pixel.copy_from_slice(&rgba);

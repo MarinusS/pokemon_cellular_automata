@@ -11,8 +11,8 @@ mod pokemon;
 
 use front::Front;
 
-const WINDOW_WIDTH: u32 = 10;
-const WINDOW_HEIGHT: u32 = 5;
+const WINDOW_WIDTH: u32 = 1800;
+const WINDOW_HEIGHT: u32 = 900;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -22,8 +22,8 @@ fn main() -> Result<(), Error> {
 
     let window = {
         let size = LogicalSize {
-            width: 800,
-            height: 600,
+            width: std::cmp::max(800, WINDOW_WIDTH),
+            height: std::cmp::max(600, WINDOW_HEIGHT),
         };
         WindowBuilder::new()
             .with_title("Pokemon automata")
@@ -51,6 +51,15 @@ fn main() -> Result<(), Error> {
             if input.key_pressed(VirtualKeyCode::Escape) || input.quit() {
                 *control_flow = ControlFlow::Exit;
                 return;
+            } else if input.mouse_pressed(0) {
+                if let Some(mouse_position) = input.mouse() {
+                    if let Some(pokemon) = front.get_pokemon_at_physical_position(mouse_position) {
+                        let grid_pos = front
+                            .physical_position_to_grid_position(mouse_position)
+                            .unwrap();
+                        println!("At position ({}, {}), {}", grid_pos.0, grid_pos.1, pokemon);
+                    }
+                }
             }
 
             // Resize the window
