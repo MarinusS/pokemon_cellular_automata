@@ -9,6 +9,7 @@ pub use pokemon_type::PokemonType;
 const INITIAL_SPAWN_HEALTH: i16 = 20;
 const RESPAWN_HEALTH: i16 = 20;
 
+#[derive(Clone)]
 pub struct Pokemon {
     pub pokemon_type: PokemonType,
     pub health: i16,
@@ -19,6 +20,20 @@ impl Pokemon {
         Pokemon {
             pokemon_type,
             health,
+        }
+    }
+
+    fn take_damage(&mut self, opponent_type: PokemonType) {
+        let damage = 2 * pokemon_type::PokemonType::get_damage_multiplier(
+            &opponent_type,
+            &self.pokemon_type,
+        ) as i16;
+
+        self.health -= damage;
+
+        if self.health <= 0 {
+            self.pokemon_type = opponent_type;
+            self.health = RESPAWN_HEALTH;
         }
     }
 }
@@ -35,6 +50,7 @@ impl fmt::Display for Pokemon {
 
 pub struct PokemonWorld {
     world: Vec<Vec<Pokemon>>,
+
     world_width: usize,
     world_height: usize,
 
@@ -81,25 +97,19 @@ impl PokemonWorld {
     }
 
     fn battle(&mut self) {
-        for y in 0..self.world_height {
-            for x in 0..self.world_width {
-                let pokemon_type = self.world.get(y).unwrap().get(x).unwrap().pokemon_type;
-                let neighbours = self.get_neighbours_coordinates(x, y);
+        for y in 1..self.world_height - 1 {
+            for x in 1..self.world_width - 1 {
+                let pokemon_type = self.get_pokemon(x, y).unwrap().pokemon_type;
 
-                for neighbour_coord in neighbours {
-                    let neighbour = self
-                        .get_pokemon_mut(neighbour_coord.0, neighbour_coord.1)
-                        .unwrap();
-
-                    neighbour.health -= 2 * pokemon_type::PokemonType::get_damage_multiplier(
-                        &pokemon_type,
-                        &neighbour.pokemon_type,
-                    ) as i16;
-
-                    if neighbour.health <= 0 {
-                        neighbour.pokemon_type = pokemon_type;
-                        neighbour.health = RESPAWN_HEALTH;
-                    }
+                for neighbour_coord in [
+                    (x - 1, y - 1),
+                    (x - 1, y + 1),
+                    (x + 1, y - 1),
+                    (x + 1, y + 1),
+                ] {
+                    self.get_pokemon_mut(neighbour_coord.0, neighbour_coord.1)
+                        .unwrap()
+                        .take_damage(pokemon_type);
                 }
             }
         }
@@ -111,27 +121,5 @@ impl PokemonWorld {
 
     pub fn get_pokemon_mut(&mut self, x: usize, y: usize) -> Option<&mut Pokemon> {
         self.world.get_mut(y)?.get_mut(x)
-    }
-
-    fn get_neighbours_coordinates(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
-        let mut neighbours = vec![];
-        if x > 0 {
-            if y > 0 {
-                neighbours.push((x - 1, y - 1));
-            }
-            if y < self.world_height - 1 {
-                neighbours.push((x - 1, y + 1));
-            }
-        }
-        if x < self.world_width - 1 {
-            if y > 0 {
-                neighbours.push((x + 1, y - 1));
-            }
-            if y < self.world_height - 1 {
-                neighbours.push((x + 1, y + 1));
-            }
-        }
-
-        neighbours
     }
 }
